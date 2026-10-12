@@ -1,0 +1,9 @@
+# Event Tickets — scheduled jobs (install with: crontab -u www-data deploy/crontab)
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Laravel scheduler — reminders, housekeeping, cache pruning
+* * * * * cd __APP_DIR__ && php artisan schedule:run >> /dev/null 2>&1
+
+# Nightly backup at 02:15
+15 2 * * * /usr/local/bin/event-tickets-backup >> /var/log/event-tickets-backup.log 2>&1

@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+###############################################################################
+#  Nightly database + uploaded-files backup.
+#
+#  Installed to /usr/local/bin/event-tickets-backup and run from cron.
+#  Keeps 14 daily, 8 weekly and 6 monthly copies.
+###############################################################################
+set -euo pipefail
+
+APP_DIR="${APP_DIR:-__APP_DIR__}"
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/event-tickets}"
+KEEP_DAILY=14
+KEEP_WEEKLY=8
+KEEP_MONTHLY=6
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+DB_FILE="${BACKUP_DIR}/db-${STAMP}.sql.gz"
+FILES_FILE="${BACKUP_DIR}/files-${STAMP}.tar.gz"
+
+mkdir -p "${BACKUP_DIR}"
+
+cd "${APP_DIR}"
+
+# --- Database ---------------------------------------------------------------
+# Credentials are read from .env so they are never hard-coded here.
+DB_NAME=$(grep -E '^DB_DATABASE=' .env | cut -d= -f2- | tr -d '"' | tr -d "'")
+DB_USER=$(grep -E '^DB_USERNAME=' .env | cut -d= -f2- | tr -d '"' | tr -d "'")
+DB_PASS=$(grep -E '^DB_PASSWORD=' .env | cut -d= -f2- | tr -d '"' | tr -d "'")
+DB_HOST=$(grep -E '^DB_HOST=' .env | cut -d= -f2- | tr -d '"' | tr -d "'")
+
+echo "Backing up database '${DB_NAME}'..."
+mysqldump \
+    --host="${DB_HOST}" \
+    --user="${DB_USER}" \
+    --password="${DB_PASS}" \
+    --single-transaction \
+    --quick \
+    --routines \
+    --triggers \
+    --events \
+    "${DB_NAME}" | gzip -9 > "${DB_FILE}"
+
+# --- Uploaded files ---------------------------------------------------------
+if [ -d "${APP_DIR}/storage/app/public" ]; then
+    echo "Backing up uploaded files..."
+    tar -czf "${FILES_FILE}" -C "${APP_DIR}/storage/app/public" .
+fi
+
+# --- Retention --------------------------------------------------------------
+echo "Pruning old backups..."
+find "${BACKUP_DIR}" -name 'db-*.sql.gz' -mtime +${KEEP_DAILY} -delete
+find "${BACKUP_DIR}" -name 'files-*.tar.gz' -mtime +${KEEP_DAILY} -delete
+find "${BACKUP_DIR}" -name 'db-*.sql.gz' -mtime +180 -delete
+find "${BACKUP_DIR}" -name 'files-*.tar.gz' -mtime +180 -delete
+
+echo "Backup complete: ${DB_FILE}"
+
+# --- Off-site copy (optional) ----------------------------------------------
+# Uncomment and configure to push copies off the server.
+# rclone copy "${DB_FILE}" remote:event-tickets-backups/
+# rclone copy "${FILES_FILE}" remote:event-tickets-backups/
