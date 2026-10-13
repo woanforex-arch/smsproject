@@ -303,4 +303,5 @@ script.
 | `FLW_AMOUNT_IN_MINOR_UNITS` | `false` | Whether `amount` is major or minor units |
 | `FLW_SESSION_DURATION` | `30` | Checkout link lifetime, minutes |
 
-A ticket type with `quantity_total = 0` is treated as **unlimited**.
+A ticket type with `quantity_total = 0` is treated as **unlimited**.#   p r o j e c t s k i l l s  
+ 
