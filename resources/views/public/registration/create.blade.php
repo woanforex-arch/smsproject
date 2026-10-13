@@ -36,11 +36,11 @@
                         @foreach ($ticketTypes as $type)
                             <option value="{{ $type->id }}"
                                 data-price="{{ $type->price }}"
-                                data-currency="{{ $type->currency }}"
+                                data-currency="{{ \App\Support\Money::symbol() }}"
                                 data-max="{{ $type->quantity_per_order_max }}"
                                 data-remaining="{{ $type->hasUnlimitedStock() ? 999 : $type->quantityRemaining() }}"
                                 @selected($selected?->id === $type->id)>
-                                {{ $type->name }} — {{ number_format((float) $type->price, 0) }} {{ $type->currency }}
+                                {{ $type->name }} — {{ \App\Support\Money::format($type->price, 0) }}
                             </option>
                         @endforeach
                     </select>

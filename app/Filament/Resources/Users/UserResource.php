@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Users;
 
 use App\Enums\UserRole;
 use App\Filament\Resources\Users\Pages\ListUsers;
+use App\Models\User;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -14,6 +15,7 @@ use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -21,13 +23,13 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
 use UnitEnum;
 
 class UserResource extends Resource
 {
-    protected static ?string $model = \App\Models\User::class;
+    protected static ?string $model = User::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUsers;
 
@@ -147,14 +149,17 @@ class UserResource extends Resource
                             ->required()
                             ->same('password'),
                     ])
-                    ->action(function (\App\Models\User $record, array $data): void {
+                    ->action(function (User $record, array $data): void {
                         $record->update(['password' => Hash::make($data['password'])]);
 
-                        $this->notify('success', title: 'Password updated.');
+                        Notification::make()
+                            ->title('Password updated.')
+                            ->success()
+                            ->send();
                     }),
 
                 DeleteAction::make()
-                    ->visible(fn (\App\Models\User $record): bool => $record->id !== auth()->id()),
+                    ->visible(fn (User $record): bool => $record->id !== auth()->id()),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
@@ -168,7 +173,7 @@ class UserResource extends Resource
             ->defaultSort('created_at', 'desc');
     }
 
-    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery();
     }

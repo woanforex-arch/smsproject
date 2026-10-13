@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\UserRole;
+use App\Models\Concerns\LogsActivity;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -14,7 +15,7 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, LogsActivity, Notifiable;
 
     protected $fillable = [
         'name',
@@ -39,6 +40,12 @@ class User extends Authenticatable implements FilamentUser
             'role' => UserRole::class,
             'last_login_at' => 'datetime',
         ];
+    }
+
+    /** Login timestamps are tracked via their own activity entry. */
+    protected function activityLogIgnore(): array
+    {
+        return ['last_login_at'];
     }
 
     public function canAccessPanel(Panel $panel): bool

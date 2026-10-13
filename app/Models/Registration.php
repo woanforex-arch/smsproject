@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\RegistrationStatus;
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,7 +14,7 @@ use Illuminate\Notifications\Notifiable;
 class Registration extends Model
 {
     /** @use HasFactory<\Database\Factories\RegistrationFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, LogsActivity, Notifiable;
 
     protected $fillable = [
         'event_id',

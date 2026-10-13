@@ -53,7 +53,7 @@
                                     <div class="flex items-baseline justify-between">
                                         <span class="font-medium">{{ $type->name }}</span>
                                         <span class="font-semibold">
-                                            {{ number_format((float) $type->price, 0) }} {{ $type->currency }}
+                                            {{ \App\Support\Money::format($type->price, 0) }}
                                         </span>
                                     </div>
 

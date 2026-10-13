@@ -3,16 +3,17 @@
 namespace App\Filament\Resources\Registrations;
 
 use App\Enums\RegistrationStatus;
-use App\Enums\SmsStatus;
 use App\Filament\Resources\Registrations\Pages\ListRegistrations;
 use App\Filament\Resources\Registrations\Pages\ViewRegistration;
 use App\Models\Registration;
 use App\Services\RegistrationService;
+use App\Support\Money;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -21,7 +22,6 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Validation\ValidationException;
 use UnitEnum;
 
 class RegistrationResource extends Resource
@@ -60,7 +60,7 @@ class RegistrationResource extends Resource
                     TextEntry::make('ticketType.name')->label('Ticket type'),
                     TextEntry::make('quantity')->numeric(),
                     TextEntry::make('amount')
-                        ->money(fn (Registration $record): string => $record->currency),
+                        ->formatStateUsing(fn ($state): string => Money::format($state)),
                     TextEntry::make('payment_status')
                         ->label('Payment')
                         ->badge()
@@ -151,7 +151,7 @@ class RegistrationResource extends Resource
                 TextColumn::make('quantity')->numeric()->sortable(),
 
                 TextColumn::make('amount')
-                    ->money(fn (Registration $record): string => $record->currency)
+                    ->formatStateUsing(fn ($state): string => Money::format($state))
                     ->sortable(),
 
                 TextColumn::make('status')
@@ -215,9 +215,16 @@ class RegistrationResource extends Resource
                     ->action(function (Registration $record): void {
                         try {
                             app(RegistrationService::class)->resendTicketSms($record);
-                            $this->notify('success', title: 'Ticket reference sent by SMS.');
+
+                            Notification::make()
+                                ->title('Ticket reference sent by SMS.')
+                                ->success()
+                                ->send();
                         } catch (\Throwable $e) {
-                            $this->notify('danger', title: $e->getMessage());
+                            Notification::make()
+                                ->title($e->getMessage())
+                                ->danger()
+                                ->send();
                         }
                     }),
             ])
@@ -245,7 +252,10 @@ class RegistrationResource extends Resource
                                 }
                             }
 
-                            $this->notify('success', title: "Ticket SMS sent for {$sent} registration(s).");
+                            Notification::make()
+                                ->title("Ticket SMS sent for {$sent} registration(s).")
+                                ->success()
+                                ->send();
                         }),
                 ]),
             ])

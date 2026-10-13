@@ -45,8 +45,13 @@
                     <div class="flex items-baseline justify-between gap-4 border-t border-gray-200 pt-4 dark:border-gray-800">
                         <dt class="text-base font-semibold">Total due</dt>
                         <dd class="text-2xl font-bold">
+                            @if (\App\Support\Money::position() === 'before')
+                                <span class="text-base font-semibold">{{ \App\Support\Money::symbol() }}</span>
+                            @endif
                             {{ number_format((float) $registration->amount, 2) }}
-                            <span class="text-base font-semibold">{{ $registration->currency }}</span>
+                            @if (\App\Support\Money::position() === 'after')
+                                <span class="text-base font-semibold">{{ \App\Support\Money::symbol() }}</span>
+                            @endif
                         </dd>
                     </div>
                 </dl>
@@ -63,7 +68,7 @@
                 <form method="POST" action="{{ route('registration.pay.checkout', $registration->reference) }}">
                     @csrf
                     <button type="submit" class="w-full rounded-lg bg-amber-500 px-4 py-3 font-medium text-white hover:bg-amber-600">
-                        Pay {{ number_format((float) $registration->amount, 2) }} {{ $registration->currency }}
+                        Pay {{ \App\Support\Money::format($registration->amount, 2) }}
                     </button>
                 </form>
 

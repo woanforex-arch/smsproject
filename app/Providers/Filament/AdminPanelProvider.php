@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\CheckInConsole;
+use App\Filament\Pages\ManageSettings;
 use App\Filament\Pages\QrScanner;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -83,6 +84,7 @@ class AdminPanelProvider extends PanelProvider
                 Dashboard::class,
                 QrScanner::class,
                 CheckInConsole::class,
+                ManageSettings::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
 

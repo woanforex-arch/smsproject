@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Event;
 use App\Models\Payment;
 use App\Models\Registration;
 use App\Models\Ticket;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -16,6 +18,7 @@ class ExportController extends Controller
     public function registrations(Request $request): StreamedResponse
     {
         $this->authorizeAdmin();
+        $this->logExport('registrations');
 
         $query = Registration::with(['event', 'ticketType', 'tickets'])
             ->when($request->filled('event_id'), fn ($q) => $q->where('event_id', $request->integer('event_id')))
@@ -82,6 +85,7 @@ class ExportController extends Controller
     public function tickets(Request $request): StreamedResponse
     {
         $this->authorizeAdmin();
+        $this->logExport('tickets');
 
         $query = Ticket::with(['event', 'ticketType', 'registration', 'checker'])
             ->when($request->filled('event_id'), fn ($q) => $q->where('event_id', $request->integer('event_id')))
@@ -133,6 +137,7 @@ class ExportController extends Controller
     public function summary(): StreamedResponse
     {
         $this->authorizeAdmin();
+        $this->logExport('event summary');
 
         $events = Event::withCount('tickets')
             ->withSum(['registrations as revenue' => fn ($q) => $q->where('status', 'verified')], 'amount')
@@ -178,6 +183,7 @@ class ExportController extends Controller
 public function payments(Request $request): StreamedResponse
 {
     $this->authorizeAdmin();
+    $this->logExport('payments');
 
     $query = Payment::with(['registration.event', 'user'])
         ->when($request->filled('event_id'), fn ($q) => $q->whereHas('registration', fn ($sub) => $sub->where('event_id', $request->integer('event_id'))))
@@ -229,8 +235,134 @@ public function payments(Request $request): StreamedResponse
     ]);
 }
 
-protected function authorizeAdmin(): void
+    /** Stream the full event list as CSV (the same columns accepted on import). */
+    public function events(Request $request): StreamedResponse
+    {
+        $this->authorizeAdmin();
+        $this->logExport('events');
+
+        $query = Event::withCount('tickets')
+            ->withSum(['registrations as revenue' => fn ($q) => $q->where('status', 'verified')], 'amount')
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
+            ->when($request->filled('from'), fn ($q) => $q->where('starts_at', '>=', $request->date('from')))
+            ->when($request->filled('to'), fn ($q) => $q->where('starts_at', '<=', $request->date('to')->endOfDay()))
+            ->orderBy('starts_at');
+
+        $filename = 'events-'.now()->format('Y-m-d-His').'.csv';
+
+        return response()->streamDownload(function () use ($query) {
+            $handle = fopen('php://output', 'w');
+
+            fwrite($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, [
+                'Title', 'Slug', 'Status', 'Starts At', 'Ends At', 'Registration Deadline',
+                'Venue', 'Address', 'City', 'Capacity', 'Tickets Sold', 'Revenue', 'Created At',
+            ]);
+
+            $query->chunk(500, function ($events) use ($handle) {
+                foreach ($events as $event) {
+                    fputcsv($handle, [
+                        $event->title,
+                        $event->slug,
+                        $event->status->label(),
+                        $event->starts_at?->toDateTimeString(),
+                        $event->ends_at?->toDateTimeString(),
+                        $event->registration_deadline?->toDateTimeString(),
+                        $event->venue,
+                        $event->address,
+                        $event->city,
+                        $event->capacity ?? '',
+                        $event->tickets_count,
+                        $event->revenue,
+                        $event->created_at?->toDateTimeString(),
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    /** Stream the staff account list as CSV. */
+    public function users(Request $request): StreamedResponse
+    {
+        $this->authorizeAdmin();
+        $this->logExport('staff accounts');
+
+        $query = User::query()
+            ->when($request->filled('role'), fn ($q) => $q->where('role', $request->string('role')))
+            ->when($request->filled('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
+            ->orderBy('name');
+
+        $filename = 'staff-accounts-'.now()->format('Y-m-d-His').'.csv';
+
+        return response()->streamDownload(function () use ($query) {
+            $handle = fopen('php://output', 'w');
+
+            fwrite($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, [
+                'Name', 'Email', 'Phone', 'Role', 'Active', 'Last Login', 'Created At',
+            ]);
+
+            $query->chunk(500, function ($users) use ($handle) {
+                foreach ($users as $user) {
+                    fputcsv($handle, [
+                        $user->name,
+                        $user->email,
+                        $user->phone,
+                        $user->role->label(),
+                        $user->is_active ? 'Yes' : 'No',
+                        $user->last_login_at?->toDateTimeString(),
+                        $user->created_at?->toDateTimeString(),
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    /** Download a ready-to-fill spreadsheet template for the event importer. */
+    public function eventImportTemplate(): StreamedResponse
+    {
+        $this->authorizeAdmin();
+
+        return response()->streamDownload(function () {
+            $handle = fopen('php://output', 'w');
+
+            fwrite($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, [
+                'title', 'slug', 'description', 'venue', 'address', 'city',
+                'starts_at', 'ends_at', 'registration_deadline', 'status', 'capacity',
+            ]);
+
+            fputcsv($handle, [
+                'Nairobi Tech Summit', 'nairobi-tech-summit', 'A one-day conference for builders.',
+                'KICC', 'Harambee Avenue', 'Nairobi', '2026-07-18 09:00', '2026-07-18 17:00',
+                '2026-07-15 23:59', 'draft', '500',
+            ]);
+
+            fclose($handle);
+        }, 'events-import-template.csv', [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    protected function authorizeAdmin(): void
     {
         abort_unless(auth()->user()?->isAdmin() ?? false, 403);
+    }
+
+    /** Record that an export was downloaded. Never breaks the download. */
+    protected function logExport(string $label): void
+    {
+        ActivityLog::record('export', null, 'Exported '.$label);
     }
 }

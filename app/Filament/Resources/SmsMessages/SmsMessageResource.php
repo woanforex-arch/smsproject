@@ -4,11 +4,13 @@ namespace App\Filament\Resources\SmsMessages;
 
 use App\Enums\SmsStatus;
 use App\Models\SmsMessage;
+use App\Services\SmsService;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -20,7 +22,7 @@ class SmsMessageResource extends Resource
 {
     protected static ?string $model = SmsMessage::class;
 
-    protected static string|BackedEnum|null $navigationIcon = \Filament\Support\Icons\Heroicon::OutlinedDevicePhoneMobile;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDevicePhoneMobile;
 
     protected static string|UnitEnum|null $navigationGroup = 'Administration';
 
@@ -106,14 +108,18 @@ class SmsMessageResource extends Resource
                     ->color('primary')
                     ->requiresConfirmation()
                     ->action(function (SmsMessage $record): void {
-                        $result = app(\App\Services\SmsService::class)->resend($record);
+                        $result = app(SmsService::class)->resend($record);
 
-                        $this->notify(
-                            $result->status->isFailure() ? 'danger' : 'success',
-                            title: $result->status->isFailure()
+                        $isFailure = $result->status->isFailure();
+
+                        $notification = Notification::make()
+                            ->title($isFailure
                                 ? 'Resend failed: '.$result->error_message
-                                : 'Message resent.',
-                        );
+                                : 'Message resent.');
+
+                        $isFailure ? $notification->danger() : $notification->success();
+
+                        $notification->send();
                     }),
             ])
             ->toolbarActions([
@@ -124,7 +130,7 @@ class SmsMessageResource extends Resource
                         ->color('primary')
                         ->requiresConfirmation()
                         ->action(function ($records): void {
-                            $service = app(\App\Services\SmsService::class);
+                            $service = app(SmsService::class);
                             $count = 0;
 
                             foreach ($records as $record) {
@@ -132,7 +138,10 @@ class SmsMessageResource extends Resource
                                 $count++;
                             }
 
-                            $this->notify('success', title: "Resent {$count} message(s).");
+                            Notification::make()
+                                ->title("Resent {$count} message(s).")
+                                ->success()
+                                ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
                 ]),

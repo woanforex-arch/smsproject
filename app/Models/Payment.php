@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\PaymentStatus;
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Payment extends Model
 {
     /** @use HasFactory<\Database\Factories\PaymentFactory> */
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $fillable = [
         'registration_id',
@@ -55,6 +56,12 @@ class Payment extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Gateway payloads are bulky and noisy — keep them out of the audit trail. */
+    protected function activityLogIgnore(): array
+    {
+        return ['meta', 'raw_payload'];
     }
 
     public function isPaid(): bool

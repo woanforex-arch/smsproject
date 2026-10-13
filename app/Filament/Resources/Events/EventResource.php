@@ -9,6 +9,7 @@ use App\Filament\Resources\Events\Pages\ListEvents;
 use App\Filament\Resources\Events\Pages\ViewEvent;
 use App\Filament\Resources\Events\RelationManagers\TicketTypesRelationManager;
 use App\Models\Event;
+use App\Support\Money;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -177,7 +178,7 @@ class EventResource extends Resource
                         ->state(fn (Event $record): int => $record->totalCapacity()),
                     \Filament\Infolists\Components\TextEntry::make('revenue')
                         ->label('Revenue')
-                        ->money(fn (Event $record): string => $record->currency())
+                        ->formatStateUsing(fn ($state): string => Money::format($state))
                         ->state(fn (Event $record): float => $record->revenue()),
                 ])
                 ->columns(4)
@@ -219,7 +220,7 @@ class EventResource extends Resource
 
                 TextColumn::make('revenue')
                     ->label('Revenue')
-                    ->money(fn (Event $record): string => $record->currency())
+                    ->formatStateUsing(fn ($state): string => Money::format($state))
                     ->state(fn (Event $record): float => $record->revenue()),
 
                 TextColumn::make('created_at')

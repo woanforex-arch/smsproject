@@ -3,9 +3,17 @@
 namespace Tests\Feature;
 
 use App\Enums\EventStatus;
+use App\Enums\SmsStatus;
+use App\Enums\TicketStatus;
+use App\Filament\Resources\SmsMessages\Pages\ListSmsMessages;
+use App\Filament\Resources\Tickets\Pages\ListTickets;
 use App\Models\Event;
+use App\Models\Payment;
+use App\Models\SmsMessage;
+use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class AdminPanelTest extends TestCase
@@ -67,13 +75,15 @@ class AdminPanelTest extends TestCase
         $this->actingAs($admin)->get('/admin/payments')->assertOk();
         $this->actingAs($admin)->get('/admin/sms-messages')->assertOk();
         $this->actingAs($admin)->get('/admin/users')->assertOk();
+        $this->actingAs($admin)->get('/admin/activity-logs')->assertOk();
+        $this->actingAs($admin)->get('/admin/settings')->assertOk();
     }
 
     public function test_payment_pages_load(): void
     {
         $admin = User::factory()->admin()->create();
 
-        $payment = \App\Models\Payment::factory()->create();
+        $payment = Payment::factory()->create();
 
         $this->actingAs($admin)->get('/admin/payments')->assertOk();
         $this->actingAs($admin)->get("/admin/payments/{$payment->id}")->assertOk();
@@ -85,13 +95,14 @@ class AdminPanelTest extends TestCase
 
         $this->actingAs($staff)->get('/admin/exports/registrations')->assertForbidden();
         $this->actingAs($staff)->get('/admin/exports/payments')->assertForbidden();
+        $this->actingAs($staff)->get('/admin/exports/users')->assertForbidden();
     }
 
     public function test_all_csv_exports_render(): void
     {
         $admin = User::factory()->admin()->create();
 
-        foreach (['registrations', 'tickets', 'payments', 'summary'] as $report) {
+        foreach (['registrations', 'tickets', 'payments', 'summary', 'events', 'users'] as $report) {
             $this->actingAs($admin)->get("/admin/exports/{$report}")->assertOk();
         }
     }
@@ -104,5 +115,40 @@ class AdminPanelTest extends TestCase
         $event->delete();
 
         $this->actingAs($admin)->get("/admin/events/{$event->id}/edit")->assertOk();
+    }
+
+    public function test_the_ticket_check_in_action_runs(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin);
+
+        $ticket = Ticket::factory()->create();
+
+        Livewire::test(ListTickets::class)
+            ->callTableAction('check_in', $ticket)
+            ->assertHasNoActionErrors();
+
+        $this->assertSame(TicketStatus::CheckedIn, $ticket->fresh()->status);
+    }
+
+    public function test_the_sms_resend_action_runs(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin);
+
+        $sms = SmsMessage::create([
+            'to_phone' => '+254700111222',
+            'body' => 'Your ticket reference is EVT-1234.',
+            'type' => 'ticket_reference',
+            'status' => 'failed',
+            'attempts' => 1,
+        ]);
+
+        Livewire::test(ListSmsMessages::class)
+            ->callTableAction('resend', $sms)
+            ->assertHasNoActionErrors();
+
+        $this->assertSame(2, $sms->fresh()->attempts);
+        $this->assertSame(SmsStatus::Sent, SmsMessage::query()->latest('id')->value('status'));
     }
 }

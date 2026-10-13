@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\EventStatus;
+use App\Models\Concerns\LogsActivity;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +16,7 @@ use Illuminate\Support\Str;
 class Event extends Model
 {
     /** @use HasFactory<\Database\Factories\EventFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
 
     protected $fillable = [
         'title',
@@ -143,6 +145,6 @@ class Event extends Model
      */
     public function currency(): string
     {
-        return $this->ticketTypes->first()?->currency ?: 'KES';
+        return $this->ticketTypes->first()?->currency ?: Money::code();
     }
 }

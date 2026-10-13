@@ -13,6 +13,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -173,7 +174,11 @@ class TicketResource extends Resource
                             ip: request()->ip(),
                         );
 
-                        $this->notify($result['ok'] ? 'success' : 'danger', title: $result['message']);
+                        $notification = Notification::make()->title($result['message']);
+
+                        $result['ok'] ? $notification->success() : $notification->danger();
+
+                        $notification->send();
                     }),
 
                 Action::make('undo')
@@ -185,7 +190,11 @@ class TicketResource extends Resource
                     ->action(function (Ticket $record): void {
                         $result = app(CheckInService::class)->undo($record, auth()->user());
 
-                        $this->notify($result['ok'] ? 'success' : 'danger', title: $result['message']);
+                        $notification = Notification::make()->title($result['message']);
+
+                        $result['ok'] ? $notification->success() : $notification->danger();
+
+                        $notification->send();
                     }),
             ])
             ->toolbarActions([

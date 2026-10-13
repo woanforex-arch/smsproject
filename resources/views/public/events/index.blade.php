@@ -53,8 +53,7 @@
                                 @endif
 
                                 <p class="mt-2 text-xs text-gray-500">
-                                    From {{ number_format((float) ($event->ticketTypes->min('price') ?? 0), 0) }}
-                                    {{ $event->ticketTypes->first()?->currency ?? 'KES' }}
+                                    From {{ \App\Support\Money::format($event->ticketTypes->min('price') ?? 0, 0) }}
                                 </p>
                             </div>
                         </div>

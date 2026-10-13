@@ -5,9 +5,11 @@ namespace App\Filament\Resources\Payments;
 use App\Enums\PaymentStatus;
 use App\Filament\Resources\Payments\Pages\ListPayments;
 use App\Filament\Resources\Payments\Pages\ViewPayment;
+use App\Filament\Resources\Registrations\RegistrationResource;
 use App\Models\Payment;
 use App\Services\PaymentFulfilmentService;
 use App\Services\PaymentService;
+use App\Support\Money;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -15,6 +17,7 @@ use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -50,7 +53,7 @@ class PaymentResource extends Resource
                         ->formatStateUsing(fn (PaymentStatus $state): string => $state->label())
                         ->color(fn (PaymentStatus $state): string => $state->color()),
                     TextEntry::make('amount')
-                        ->money(fn (Payment $record): string => $record->currency),
+                        ->formatStateUsing(fn ($state): string => Money::format($state)),
                     TextEntry::make('currency'),
                     TextEntry::make('payment_type')->label('Method')->placeholder('—'),
                     TextEntry::make('transaction_id')->copyable()->placeholder('—'),
@@ -63,7 +66,7 @@ class PaymentResource extends Resource
                         ->label('Booking reference')
                         ->copyable()
                         ->url(fn (Payment $record): ?string => $record->registration
-                            ? \App\Filament\Resources\Registrations\RegistrationResource::getUrl('view', ['record' => $record->registration])
+                            ? RegistrationResource::getUrl('view', ['record' => $record->registration])
                             : null),
                     TextEntry::make('registration.name'),
                     TextEntry::make('registration.email')->copyable(),
@@ -122,7 +125,7 @@ class PaymentResource extends Resource
                     ->limit(35),
 
                 TextColumn::make('amount')
-                    ->money(fn (Payment $record): string => $record->currency)
+                    ->formatStateUsing(fn ($state): string => Money::format($state))
                     ->sortable(),
 
                 TextColumn::make('status')
@@ -173,10 +176,11 @@ class PaymentResource extends Resource
                     ->action(function (Payment $record): void {
                         $result = app(PaymentService::class)->confirmByReference($record, 'manual_reconcile');
 
-                        $this->notify(
-                            $result['ok'] ? 'success' : 'warning',
-                            title: $result['message'],
-                        );
+                        $notification = Notification::make()->title($result['message']);
+
+                        $result['ok'] ? $notification->success() : $notification->warning();
+
+                        $notification->send();
                     }),
 
                 Action::make('mark_paid')
@@ -195,7 +199,10 @@ class PaymentResource extends Resource
                         app(PaymentFulfilmentService::class)
                             ->markPaidManually($record, auth()->user(), $data['note'] ?? null);
 
-                        $this->notify('success', title: 'Payment marked as paid and tickets issued.');
+                        Notification::make()
+                            ->title('Payment marked as paid and tickets issued.')
+                            ->success()
+                            ->send();
                     }),
 
                 Action::make('resend_checkout')
@@ -207,7 +214,10 @@ class PaymentResource extends Resource
                         $link = $record->checkout_url;
 
                         if (! $link) {
-                            $this->notify('warning', title: 'No checkout link has been generated yet.');
+                            Notification::make()
+                                ->title('No checkout link has been generated yet.')
+                                ->warning()
+                                ->send();
 
                             return;
                         }
@@ -220,7 +230,10 @@ class PaymentResource extends Resource
                             registrationId: $record->registration_id,
                         );
 
-                        $this->notify('success', title: 'Payment link sent by SMS.');
+                        Notification::make()
+                            ->title('Payment link sent by SMS.')
+                            ->success()
+                            ->send();
                     }),
             ])
             ->toolbarActions([
@@ -239,7 +252,10 @@ class PaymentResource extends Resource
                                 }
                             }
 
-                            $this->notify('success', title: "Confirmed {$ok} payment(s).");
+                            Notification::make()
+                                ->title("Confirmed {$ok} payment(s).")
+                                ->success()
+                                ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
                 ]),

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Events\RelationManagers;
 
+use App\Support\Money;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
@@ -34,7 +35,7 @@ class TicketTypesRelationManager extends RelationManager
                     TextInput::make('currency')
                         ->required()
                         ->maxLength(3)
-                        ->default('KES'),
+                        ->default(fn (): string => Money::code()),
                     TextInput::make('price')
                         ->required()
                         ->numeric()
@@ -97,7 +98,7 @@ class TicketTypesRelationManager extends RelationManager
                         : null),
 
                 TextColumn::make('price')
-                    ->money(fn ($record): string => $record->currency)
+                    ->formatStateUsing(fn ($state): string => Money::format($state))
                     ->sortable(),
 
                 TextColumn::make('quantity_sold')

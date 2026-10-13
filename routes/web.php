@@ -83,10 +83,13 @@ Route::get('/tickets/{reference}/print', [TicketController::class, 'print'])
 */
 
 Route::middleware(['auth'])->prefix('admin/exports')->name('exports.')->group(function () {
+    Route::get('events', [ExportController::class, 'events'])->name('events');
+    Route::get('events/template', [ExportController::class, 'eventImportTemplate'])->name('events.template');
     Route::get('registrations', [ExportController::class, 'registrations'])->name('registrations');
     Route::get('tickets', [ExportController::class, 'tickets'])->name('tickets');
     Route::get('payments', [ExportController::class, 'payments'])->name('payments');
     Route::get('summary', [ExportController::class, 'summary'])->name('summary');
+    Route::get('users', [ExportController::class, 'users'])->name('users');
 });
 
 /*
