@@ -52,8 +52,8 @@ class UpcomingEventsChart extends ChartWidget
             ->published()
             ->where('ends_at', '>=', now())
             ->withCount([
-                'tickets as sold',
-                'tickets as checked',
+                'tickets as sold' => fn ($q) => $q->whereIn('status', ['valid', 'checked_in']),
+                'tickets as checked' => fn ($q) => $q->where('status', 'checked_in'),
             ])
             ->orderBy('starts_at')
             ->limit(8)

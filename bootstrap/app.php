@@ -19,7 +19,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'webhooks/flutterwave',
         ]);
 
-        $middleware->trustProxies(at: '*');
+        // Only trust forwarded headers when explicitly configured. Trusting
+        // every proxy by default lets a client spoof its own IP address.
+        $middleware->trustProxies(at: env('TRUSTED_PROXIES'));
+
+        // Auth-protected routes (e.g. the CSV exports) send guests here. There
+        // is no `login` route, only Filament's, so without this the framework
+        // throws a 500 while trying to build the redirect.
+        $middleware->redirectGuestsTo(fn () => route('filament.admin.auth.login'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

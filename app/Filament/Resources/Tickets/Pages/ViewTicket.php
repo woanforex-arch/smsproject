@@ -16,7 +16,7 @@ class ViewTicket extends ViewRecord
             Action::make('print')
                 ->label('Print')
                 ->icon('heroicon-m-printer')
-                ->url(fn (): string => route('tickets.print', $this->getRecord()))
+                ->url(fn (): string => route('tickets.print', $this->getRecord()->reference))
                 ->openUrlInNewTab(),
         ];
     }

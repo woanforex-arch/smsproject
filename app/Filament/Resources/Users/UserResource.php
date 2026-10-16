@@ -14,6 +14,7 @@ use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -21,6 +22,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 use UnitEnum;
@@ -150,7 +152,7 @@ class UserResource extends Resource
                     ->action(function (\App\Models\User $record, array $data): void {
                         $record->update(['password' => Hash::make($data['password'])]);
 
-                        $this->notify('success', title: 'Password updated.');
+                        Notification::make()->title('Password updated.')->success()->send();
                     }),
 
                 DeleteAction::make()
@@ -173,7 +175,22 @@ class UserResource extends Resource
         return parent::getEloquentQuery();
     }
 
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->isAdmin() ?? false;
+    }
+
     public static function canCreate(): bool
+    {
+        return auth()->user()?->isAdmin() ?? false;
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return auth()->user()?->isAdmin() ?? false;
+    }
+
+    public static function canDelete(Model $record): bool
     {
         return auth()->user()?->isAdmin() ?? false;
     }

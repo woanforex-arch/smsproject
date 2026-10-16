@@ -33,6 +33,30 @@ class SmsService
             'attempts' => 1,
         ]);
 
+        return $this->deliver($record);
+    }
+
+    /**
+     * Re-send an existing message, incrementing its attempt counter and
+     * clearing any prior error state.
+     */
+    public function resend(SmsMessage $record): SmsMessage
+    {
+        $record->update([
+            'attempts' => $record->attempts + 1,
+            'status' => SmsStatus::Queued,
+            'error_code' => null,
+            'error_message' => null,
+        ]);
+
+        return $this->deliver($record);
+    }
+
+    /**
+     * Attempt delivery of an already-persisted message and record the outcome.
+     */
+    private function deliver(SmsMessage $record): SmsMessage
+    {
         // When Twilio is not configured, short-circuit to a logged "sent"
         // so the app remains fully testable without credentials.
         if (! $this->isConfigured()) {
@@ -43,9 +67,9 @@ class SmsService
             ]);
 
             Log::info('SMS (not sent, Twilio unconfigured)', [
-                'to' => $toPhone,
-                'type' => $type,
-                'body' => $body,
+                'to' => $record->to_phone,
+                'type' => $record->type,
+                'body' => $record->body,
             ]);
 
             return $record->refresh();
@@ -62,8 +86,8 @@ class SmsService
 
             $message = $client->messages->create(
                 array_filter([
-                    'to' => $toPhone,
-                    'body' => $body,
+                    'to' => $record->to_phone,
+                    'body' => $record->body,
                     'messagingServiceSid' => $messagingServiceSid ?: null,
                     'from' => $messagingServiceSid ? null : $from,
                 ])
@@ -78,8 +102,8 @@ class SmsService
             return $record->refresh();
         } catch (TwilioException $e) {
             Log::error('Twilio send failed', [
-                'to' => $toPhone,
-                'type' => $type,
+                'to' => $record->to_phone,
+                'type' => $record->type,
                 'message' => $e->getMessage(),
             ]);
 
@@ -91,28 +115,6 @@ class SmsService
 
             return $record->refresh();
         }
-    }
-
-    /**
-     * Re-send an existing message, incrementing its attempt counter and
-     * clearing any prior error state.
-     */
-    public function resend(SmsMessage $record): SmsMessage
-    {
-        $record->update([
-            'attempts' => $record->attempts + 1,
-            'status' => SmsStatus::Queued,
-            'error_code' => null,
-            'error_message' => null,
-        ]);
-
-        return $this->send(
-            $record->to_phone,
-            $record->body,
-            $record->type,
-            $record->registration_id,
-            $record->ticket_id
-        )->refresh();
     }
 
     /**
@@ -137,6 +139,12 @@ class SmsService
             default => $record->status,
         };
 
+        // Twilio can deliver callbacks out of order (or retry an old one); a
+        // stale `queued` must never overwrite a later `delivered`.
+        if ($this->statusRank($mapped) <= $this->statusRank($record->status)) {
+            return $record;
+        }
+
         $record->update(array_filter([
             'status' => $mapped,
             'sent_at' => $record->sent_at ?? now(),
@@ -144,6 +152,19 @@ class SmsService
         ], fn ($v) => $v !== null));
 
         return $record->refresh();
+    }
+
+    /**
+     * Monotonic ordering of delivery states so late callbacks cannot regress
+     * the row. Terminal states all share rank 2.
+     */
+    private function statusRank(SmsStatus $status): int
+    {
+        return match ($status) {
+            SmsStatus::Queued => 0,
+            SmsStatus::Sent => 1,
+            SmsStatus::Delivered, SmsStatus::Undelivered, SmsStatus::Failed => 2,
+        };
     }
 
     public function isConfigured(): bool

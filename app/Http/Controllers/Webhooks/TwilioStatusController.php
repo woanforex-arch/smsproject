@@ -15,11 +15,24 @@ class TwilioStatusController extends Controller
     /**
      * Receive Twilio message status callbacks.
      *
-     * Twilio signs the request with an X-Twilio-Signature header; when a
-     * webhook token is configured we validate the callback came from Twilio.
+     * When TWILIO_WEBHOOK_TOKEN is configured the callback must carry it (as a
+     * `token` query/body parameter or an X-Webhook-Token header). Without a
+     * configured token — e.g. local/tests — callbacks are accepted as before.
      */
     public function status(Request $request): JsonResponse
     {
+        $configuredToken = config('services.twilio.webhook_token');
+
+        if (filled($configuredToken)) {
+            $provided = (string) ($request->header('X-Webhook-Token') ?: $request->input('token', ''));
+
+            if (! hash_equals((string) $configuredToken, $provided)) {
+                Log::warning('Rejected Twilio status callback with an invalid webhook token');
+
+                return response()->json(['ok' => false, 'error' => 'invalid token'], 403);
+            }
+        }
+
         $sid = (string) $request->input('MessageSid', $request->input('SmsSid', ''));
         $status = (string) $request->input('MessageStatus', $request->input('SmsStatus', ''));
 

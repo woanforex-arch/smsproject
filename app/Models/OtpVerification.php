@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Database\Eloquent\Model;
 
 class OtpVerification extends Model
 {
+    use MassPrunable;
+
     protected $fillable = [
         'phone',
         'code_hash',
@@ -65,6 +69,15 @@ class OtpVerification extends Model
 
     public function registration()
     {
-        return $this->belongsTo(Registration::class, 'context');
+        return $this->belongsTo(Registration::class, 'context', 'reference');
+    }
+
+    /**
+     * Rows to remove with `model:prune` — anything older than a week is past
+     * its usefulness (codes expire in minutes) and only grows the table.
+     */
+    public function prunable(): Builder
+    {
+        return static::query()->where('created_at', '<', now()->subWeek());
     }
 }

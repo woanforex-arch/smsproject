@@ -42,6 +42,7 @@ class SendEventReminders extends Command
         foreach ($events as $event) {
             $registrations = $event->registrations
                 ->where('status', 'verified')
+                ->whereNull('reminder_sent_at')
                 ->filter(fn (Registration $r) => $r->tickets->isNotEmpty());
 
             foreach ($registrations as $registration) {
@@ -49,6 +50,9 @@ class SendEventReminders extends Command
                 // through a User model.
                 Notification::route('mail', $registration->email)
                     ->notify(new EventReminder($registration, $event));
+
+                // Stamp the send so the next (hourly) run skips this guest.
+                $registration->update(['reminder_sent_at' => now()]);
 
                 $sent++;
             }

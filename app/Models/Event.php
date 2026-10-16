@@ -130,7 +130,10 @@ class Event extends Model
 
     public function revenue(): float
     {
-        return (float) $this->registrations()->where('status', 'verified')->sum('amount');
+        return (float) $this->registrations()
+            ->where('status', 'verified')
+            ->where('payment_status', 'paid')
+            ->sum('amount');
     }
 
     public function totalCapacity(): int

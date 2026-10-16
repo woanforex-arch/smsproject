@@ -21,6 +21,14 @@ class RegistrationController extends Controller
     {
         abort_unless($event->isOpenForRegistration(), 404);
 
+        // The event page links here as ?ticketType={id}; fall back to the
+        // route parameter / first available type so the deep link is honoured.
+        $requested = $request->query('ticketType');
+
+        if (is_string($requested)) {
+            $ticketType = $requested;
+        }
+
         $ticketTypes = $event->ticketTypes->filter(fn (TicketType $type) => $type->isOnSale())->values();
 
         if ($ticketTypes->isEmpty()) {
@@ -96,7 +104,9 @@ class RegistrationController extends Controller
     {
         $this->registrations->resendOtp($registration);
 
-        return back()->with('status', 'A new verification code has been sent.');
+        return redirect()
+            ->route('registration.verify', $registration->reference)
+            ->with('status', 'A new verification code has been sent.');
     }
 
     protected function throttle(Request $request): void

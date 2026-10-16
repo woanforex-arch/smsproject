@@ -72,7 +72,7 @@
                         <summary class="cursor-pointer text-sm font-medium text-gray-600 dark:text-gray-400">
                             No camera? Enter the ticket reference manually
                         </summary>
-                        <form wire:submit="scan" class="mt-3 flex gap-2">
+                        <form wire:submit="scanManual" class="mt-3 flex gap-2">
                             <input
                                 type="text"
                                 wire:model="reference"

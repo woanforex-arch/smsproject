@@ -8,6 +8,7 @@ use App\Filament\Resources\Payments\Pages\ViewPayment;
 use App\Models\Payment;
 use App\Services\PaymentFulfilmentService;
 use App\Services\PaymentService;
+use App\Services\SmsService;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -15,6 +16,7 @@ use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -160,7 +162,15 @@ class PaymentResource extends Resource
                     ->searchable()
                     ->preload(),
 
-                SelectFilter::make('payment_type')->label('Method')->multiple(),
+                SelectFilter::make('payment_type')
+                    ->label('Method')
+                    ->options(fn (): array => Payment::query()
+                        ->whereNotNull('payment_type')
+                        ->distinct()
+                        ->orderBy('payment_type')
+                        ->pluck('payment_type', 'payment_type')
+                        ->all())
+                    ->multiple(),
             ])
             ->recordActions([
                 ViewAction::make(),
@@ -173,17 +183,17 @@ class PaymentResource extends Resource
                     ->action(function (Payment $record): void {
                         $result = app(PaymentService::class)->confirmByReference($record, 'manual_reconcile');
 
-                        $this->notify(
-                            $result['ok'] ? 'success' : 'warning',
-                            title: $result['message'],
-                        );
+                        Notification::make()
+                            ->title($result['message'])
+                            ->{$result['ok'] ? 'success' : 'warning'}()
+                            ->send();
                     }),
 
                 Action::make('mark_paid')
                     ->label('Mark as paid manually')
                     ->icon('heroicon-m-check-badge')
                     ->color('success')
-                    ->visible(fn (Payment $record): bool => ! $record->isPaid())
+                    ->visible(fn (Payment $record): bool => ! $record->isPaid() && $record->status !== PaymentStatus::Refunded)
                     ->schema([
                         Textarea::make('note')
                             ->label('Note (optional)')
@@ -195,7 +205,7 @@ class PaymentResource extends Resource
                         app(PaymentFulfilmentService::class)
                             ->markPaidManually($record, auth()->user(), $data['note'] ?? null);
 
-                        $this->notify('success', title: 'Payment marked as paid and tickets issued.');
+                        Notification::make()->title('Payment marked as paid and tickets issued.')->success()->send();
                     }),
 
                 Action::make('resend_checkout')
@@ -207,20 +217,20 @@ class PaymentResource extends Resource
                         $link = $record->checkout_url;
 
                         if (! $link) {
-                            $this->notify('warning', title: 'No checkout link has been generated yet.');
+                            Notification::make()->title('No checkout link has been generated yet.')->warning()->send();
 
                             return;
                         }
 
                         // Re-sending is just giving the guest their link again.
-                        app(App\Services\SmsService::class)->send(
+                        app(SmsService::class)->send(
                             toPhone: $record->registration?->phone ?? '',
                             body: "Pay for your booking {$record->registration?->reference}: {$link}",
                             type: 'payment_link',
                             registrationId: $record->registration_id,
                         );
 
-                        $this->notify('success', title: 'Payment link sent by SMS.');
+                        Notification::make()->title('Payment link sent by SMS.')->success()->send();
                     }),
             ])
             ->toolbarActions([
@@ -239,7 +249,7 @@ class PaymentResource extends Resource
                                 }
                             }
 
-                            $this->notify('success', title: "Confirmed {$ok} payment(s).");
+                            Notification::make()->title("Confirmed {$ok} payment(s).")->success()->send();
                         })
                         ->deselectRecordsAfterCompletion(),
                 ]),

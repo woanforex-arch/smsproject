@@ -70,10 +70,11 @@ class OtpService
      *
      * @return array{ok: bool, otp?: OtpVerification, message?: string}
      */
-    public function verify(string $phone, string $code, string $purpose = 'registration'): array
+    public function verify(string $phone, string $code, string $purpose = 'registration', ?string $context = null): array
     {
         $otp = OtpVerification::where('phone', $phone)
             ->where('purpose', $purpose)
+            ->when($context !== null, fn ($q) => $q->where('context', $context))
             ->whereNull('verified_at')
             ->latest('id')
             ->first();
@@ -130,7 +131,7 @@ class OtpService
     {
         $seconds = (int) config('ticketing.otp.resend_cooldown_seconds');
 
-        return (int) ceil($seconds - (Cache::get($this->cooldownKey($phone), time()) - time()));
+        return (int) ceil($seconds - (time() - (int) Cache::get($this->cooldownKey($phone), time())));
     }
 
     private function rememberCooldown(string $phone): void

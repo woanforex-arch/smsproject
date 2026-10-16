@@ -23,7 +23,7 @@ class TicketingStats extends StatsOverviewWidget
         $ticketsSold = Ticket::whereIn('status', ['valid', 'checked_in'])->count();
         $checkedIn = Ticket::where('status', 'checked_in')->count();
 
-        $revenue = (float) Registration::where('status', 'verified')->sum('amount');
+        $revenue = (float) Registration::where('status', 'verified')->where('payment_status', 'paid')->sum('amount');
 
         $pending = Registration::where('status', 'pending_otp')->count();
 
@@ -47,7 +47,7 @@ class TicketingStats extends StatsOverviewWidget
                 ->color('success'),
 
             Stat::make('Revenue', number_format($revenue, 2))
-                ->description('Verified registrations')
+                ->description('Paid registrations')
                 ->descriptionIcon('heroicon-m-currency-dollar')
                 ->color('info'),
 

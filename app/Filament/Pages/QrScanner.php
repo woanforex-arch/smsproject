@@ -12,6 +12,7 @@ use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Attributes\On;
 use UnitEnum;
 
 class QrScanner extends Page
@@ -39,6 +40,7 @@ class QrScanner extends Page
     /** Live feed of the most recent scans in this session. */
     public array $feed = [];
 
+    #[On('scan')]
     public function scan(string $payload): void
     {
         $payload = trim($payload);
@@ -78,6 +80,12 @@ class QrScanner extends Page
         );
 
         $this->pushFeed($result);
+    }
+
+    /** Manual-entry fallback: scan the reference typed into the form. */
+    public function scanManual(): void
+    {
+        $this->scan($this->reference);
     }
 
     protected function pushFeed(array $result): void

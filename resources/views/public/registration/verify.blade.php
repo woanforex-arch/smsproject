@@ -25,16 +25,16 @@
             @endif
 
             <form method="POST" action="{{ route('registration.verify.store', $registration->reference) }}"
-                  class="mt-6 space-y-4" x-data x-init="$nextTick(() => $refs.code.focus())">
+                  class="mt-6 space-y-4">
                 @csrf
 
-                <input x-ref="code"
-                       name="code"
+                <input name="code"
                        type="text"
                        inputmode="numeric"
                        pattern="[0-9]*"
                        maxlength="{{ config('ticketing.otp.length') }}"
                        autocomplete="one-time-code"
+                       autofocus
                        required
                        placeholder="{{ str_repeat('0', config('ticketing.otp.length')) }}"
                        class="w-full rounded-lg border-gray-300 text-center font-mono text-2xl tracking-[0.5em] dark:bg-gray-900 dark:border-gray-600 dark:text-white">

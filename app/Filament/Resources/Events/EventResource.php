@@ -239,7 +239,10 @@ class EventResource extends Resource
                         $state = $data['state'] ?? null;
 
                         return match ($state) {
-                            true => $query->where('status', EventStatus::Published->value),
+                            true => $query->where('status', EventStatus::Published->value)
+                                ->where(fn ($q) => $q
+                                    ->whereNull('registration_deadline')
+                                    ->orWhere('registration_deadline', '>=', now())),
                             false => $query->where('status', '!=', EventStatus::Published->value),
                             default => $query,
                         };
@@ -252,12 +255,12 @@ class EventResource extends Resource
                 EditAction::make(),
                 DeleteAction::make(),
                 ForceDeleteAction::make()->visible(fn (): bool => auth()->user()?->isAdmin() ?? false),
-                RestoreAction::make(),
+                RestoreAction::make()->visible(fn (): bool => auth()->user()?->isAdmin() ?? false),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
-                    RestoreBulkAction::make(),
+                    RestoreBulkAction::make()->visible(fn (): bool => auth()->user()?->isAdmin() ?? false),
                     ForceDeleteBulkAction::make()->visible(fn (): bool => auth()->user()?->isAdmin() ?? false),
                 ]),
             ]);

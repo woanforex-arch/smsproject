@@ -13,6 +13,7 @@ use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -215,9 +216,9 @@ class RegistrationResource extends Resource
                     ->action(function (Registration $record): void {
                         try {
                             app(RegistrationService::class)->resendTicketSms($record);
-                            $this->notify('success', title: 'Ticket reference sent by SMS.');
+                            Notification::make()->title('Ticket reference sent by SMS.')->success()->send();
                         } catch (\Throwable $e) {
-                            $this->notify('danger', title: $e->getMessage());
+                            Notification::make()->title($e->getMessage())->danger()->send();
                         }
                     }),
             ])
@@ -245,7 +246,7 @@ class RegistrationResource extends Resource
                                 }
                             }
 
-                            $this->notify('success', title: "Ticket SMS sent for {$sent} registration(s).");
+                            Notification::make()->title("Ticket SMS sent for {$sent} registration(s).")->success()->send();
                         }),
                 ]),
             ])

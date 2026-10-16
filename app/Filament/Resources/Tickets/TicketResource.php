@@ -11,8 +11,8 @@ use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
-use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -66,9 +66,9 @@ class TicketResource extends Resource
             Section::make('QR code')
                 ->description('Scan this code at the door, or use the reference above for manual entry.')
                 ->schema([
-                    ImageEntry::make('qr')
+                    TextEntry::make('qr')
                         ->label('')
-                        ->height(240)
+                        ->html()
                         ->state(fn (Ticket $record): HtmlString => new HtmlString(
                             QrCode::format('svg')
                                 ->size(240)
@@ -173,7 +173,10 @@ class TicketResource extends Resource
                             ip: request()->ip(),
                         );
 
-                        $this->notify($result['ok'] ? 'success' : 'danger', title: $result['message']);
+                        Notification::make()
+                            ->title($result['message'])
+                            ->{$result['ok'] ? 'success' : 'danger'}()
+                            ->send();
                     }),
 
                 Action::make('undo')
@@ -185,7 +188,10 @@ class TicketResource extends Resource
                     ->action(function (Ticket $record): void {
                         $result = app(CheckInService::class)->undo($record, auth()->user());
 
-                        $this->notify($result['ok'] ? 'success' : 'danger', title: $result['message']);
+                        Notification::make()
+                            ->title($result['message'])
+                            ->{$result['ok'] ? 'success' : 'danger'}()
+                            ->send();
                     }),
             ])
             ->toolbarActions([

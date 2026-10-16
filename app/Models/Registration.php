@@ -32,6 +32,8 @@ class Registration extends Model
         'otp_verified_at',
         'ip_address',
         'notes',
+        'paid_at',
+        'reminder_sent_at',
     ];
 
     protected function casts(): array
@@ -41,6 +43,7 @@ class Registration extends Model
             'status' => RegistrationStatus::class,
             'otp_verified_at' => 'datetime',
             'paid_at' => 'datetime',
+            'reminder_sent_at' => 'datetime',
         ];
     }
 

@@ -40,30 +40,34 @@ class RegistrationService
         array $data,
         ?User $user = null
     ): Registration {
-        $this->guardAvailability($event, $ticketType, (int) $data['quantity']);
-
         $registration = DB::transaction(function () use ($event, $ticketType, $data, $user) {
             $quantity = (int) $data['quantity'];
 
+            // Lock the ticket type row so two simultaneous requests cannot both
+            // pass the availability check and oversell the last remaining seat.
+            $locked = TicketType::whereKey($ticketType->id)->lockForUpdate()->firstOrFail();
+
+            $this->guardAvailability($event, $locked, $quantity);
+
             $registration = Registration::create([
                 'event_id' => $event->id,
-                'ticket_type_id' => $ticketType->id,
+                'ticket_type_id' => $locked->id,
                 'user_id' => $user?->id,
                 'reference' => $this->references->registrationReference(),
                 'name' => $data['name'],
                 'email' => $data['email'],
                 'phone' => $data['phone'],
                 'quantity' => $quantity,
-                'amount' => round((float) $ticketType->price * $quantity, 2),
-                'currency' => $ticketType->currency,
+                'amount' => round((float) $locked->price * $quantity, 2),
+                'currency' => $locked->currency,
                 'status' => RegistrationStatus::PendingOtp,
-                'payment_status' => $ticketType->needsPayment() ? 'pending' : 'not_required',
+                'payment_status' => $locked->needsPayment() ? 'pending' : 'not_required',
                 'ip_address' => request()->ip(),
             ]);
 
             // Reserve inventory up-front so the hold is released on the
             // registration itself rather than only when tickets are issued.
-            $ticketType->increment('quantity_sold', $quantity);
+            $locked->increment('quantity_sold', $quantity);
 
             return $registration;
         });
@@ -101,7 +105,13 @@ class RegistrationService
             return $registration;
         }
 
-        $result = $this->otp->verify($registration->phone, $code, 'registration');
+        if ($registration->status === RegistrationStatus::Cancelled) {
+            throw ValidationException::withMessages([
+                'code' => 'This registration was cancelled. Please start a new booking.',
+            ]);
+        }
+
+        $result = $this->otp->verify($registration->phone, $code, 'registration', $registration->reference);
 
         if (! $result['ok']) {
             $registration->increment('otp_attempts');
@@ -116,8 +126,9 @@ class RegistrationService
 
         $registration = $registration->fresh();
 
-        if ($registration->requiresPayment()) {
-            // Awaiting payment — tickets are issued once PaymentService confirms.
+        // Tickets are held back until payment settles — unless the payment
+        // already arrived before verification (see PaymentFulfilmentService).
+        if ($registration->requiresPayment() && ! $registration->isPaid()) {
             return $registration;
         }
 
@@ -142,11 +153,11 @@ class RegistrationService
         $event = $registration->event;
         $ticketType = $registration->ticketType;
 
-        DB::transaction(function () use ($registration, $event, $ticketType) {
+        $issued = DB::transaction(function () use ($registration, $event, $ticketType) {
             $locked = Registration::whereKey($registration->id)->lockForUpdate()->first();
 
             if (! $locked || $locked->tickets()->exists()) {
-                return;
+                return false;
             }
 
             $this->references->issueTickets(
@@ -162,7 +173,16 @@ class RegistrationService
                     'paid_at' => now(),
                 ]);
             }
+
+            return true;
         });
+
+        // A webhook and a redirect landing at the same moment must not BOTH
+        // notify the guest; only the caller that actually issued the tickets
+        // sends the confirmation.
+        if (! $issued) {
+            return;
+        }
 
         $this->sendConfirmation($registration);
     }
@@ -177,6 +197,12 @@ class RegistrationService
         if ($registration->isVerified()) {
             throw ValidationException::withMessages([
                 'code' => 'This registration is already verified.',
+            ]);
+        }
+
+        if ($registration->status === RegistrationStatus::Cancelled) {
+            throw ValidationException::withMessages([
+                'code' => 'This registration was cancelled. Please start a new booking.',
             ]);
         }
 

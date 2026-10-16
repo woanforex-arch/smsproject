@@ -54,7 +54,9 @@ class TicketController extends Controller
         $ticket = Ticket::where('reference', $data['reference'])->first();
 
         if (! $ticket) {
-            return back()->withErrors(['reference' => 'No ticket found with that reference.']);
+            return redirect()
+                ->route('tickets.lookup')
+                ->withErrors(['reference' => 'No ticket found with that reference.']);
         }
 
         return redirect()->route('tickets.show', $ticket->reference);

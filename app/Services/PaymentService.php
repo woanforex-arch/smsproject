@@ -96,13 +96,21 @@ class PaymentService
     public function confirmByReference(Payment $payment, ?string $verifiedBy = null): array
     {
         if ($payment->isPaid()) {
+            // Repair, don't just short-circuit: a crash between marking the
+            // payment successful and issuing tickets would otherwise leave a
+            // paid booking ticket-less forever. handle() is idempotent.
+            $this->fulfilment->handle($payment, $verifiedBy ?? 'gateway');
+
             return ['ok' => true, 'payment' => $payment, 'message' => 'Already paid.'];
         }
 
         try {
             $transaction = $this->gateway->verifyByReference($payment->tx_ref);
         } catch (PaymentGatewayException $e) {
-            return $this->fail($payment, $e->getMessage());
+            // A transport/HTTP error is not proof the payment failed. Hold it
+            // as pending so ReconcilePayments retries instead of blacklisting
+            // a payment that may have actually succeeded.
+            return $this->fail($payment, $e->getMessage(), hold: true);
         }
 
         return $this->settle($payment, $transaction, $verifiedBy);
@@ -132,6 +140,10 @@ class PaymentService
         // Idempotency: Flutterwave retries, and charge.completed fires for
         // success and failure alike.
         if ($payment->isPaid()) {
+            // Re-assert fulfilment in case a prior attempt marked the payment
+            // successful but crashed before issuing tickets.
+            $this->fulfilment->handle($payment, $verifiedBy ?? 'gateway');
+
             return ['ok' => true, 'payment' => $payment, 'message' => 'Already settled.'];
         }
 

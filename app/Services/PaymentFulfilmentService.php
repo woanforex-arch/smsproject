@@ -36,11 +36,18 @@ class PaymentFulfilmentService
             return false;
         }
 
-        // Only a verified registration may be fulfilled — otherwise a payment
-        // that races ahead of OTP verification would issue tickets silently.
+        // Only a verified registration may have tickets issued — otherwise a
+        // payment that races ahead of OTP verification would issue tickets
+        // silently. Record that the money arrived so verification can release
+        // the tickets later.
         if (! $registration->isVerified()) {
             Log::warning('Payment settled for an unverified registration', [
                 'registration' => $registration->reference,
+            ]);
+
+            $registration->update([
+                'payment_status' => 'paid',
+                'paid_at' => $payment->paid_at ?? now(),
             ]);
 
             return false;

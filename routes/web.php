@@ -70,7 +70,7 @@ Route::post('/find-ticket', [TicketController::class, 'find'])->name('tickets.fi
 
 Route::get('/tickets/{ticket:reference}', [TicketController::class, 'show'])
     ->name('tickets.show')
-    ->where('reference', '[A-Z0-9\-]+');
+    ->where('ticket', '[A-Z0-9\-]+');
 
 Route::get('/tickets/{reference}/print', [TicketController::class, 'print'])
     ->name('tickets.print')

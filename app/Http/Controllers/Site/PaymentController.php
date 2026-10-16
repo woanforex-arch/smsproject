@@ -25,15 +25,14 @@ class PaymentController extends Controller
     {
         $registration->loadMissing(['event', 'ticketType', 'tickets']);
 
-        if (! $registration->requiresPayment()) {
-            return $this->result($registration);
-        }
-
-        if ($registration->isPaid()) {
-            return $this->result($registration);
-        }
-
+        // The booking must be phone-verified before anything payment-related.
+        // This check comes first so an unverified (e.g. free) booking is not
+        // bounced back here forever by result().
         abort_unless($registration->isVerified(), 403, 'Verify your phone number first.');
+
+        if (! $registration->requiresPayment() || $registration->isPaid()) {
+            return $this->result($registration);
+        }
 
         return view('public.payment.pay', ['registration' => $registration]);
     }
@@ -58,7 +57,9 @@ class PaymentController extends Controller
                 'message' => $e->getMessage(),
             ]);
 
-            return back()->withErrors(['payment' => $e->getMessage()]);
+            return redirect()
+                ->route('registration.pay', $registration->reference)
+                ->withErrors(['payment' => $e->getMessage()]);
         }
 
         return redirect()->away($payment->checkout_url);
@@ -84,7 +85,9 @@ class PaymentController extends Controller
         $payment = $registration->latestPayment;
 
         if (! $payment) {
-            return back()->withErrors(['payment' => 'No payment has been started yet.']);
+            return redirect()
+                ->route('registration.pay', $registration->reference)
+                ->withErrors(['payment' => 'No payment has been started yet.']);
         }
 
         $result = $this->payments->confirmByReference($payment, 'redirect_return');
@@ -104,6 +107,13 @@ class PaymentController extends Controller
      */
     public function cancelled(Registration $registration): RedirectResponse
     {
+        // If the payment actually settled, treat "cancel" as a stale browser
+        // action and send the guest to their tickets instead of stranding a
+        // successful payment.
+        if ($registration->isPaid()) {
+            return $this->result($registration->fresh());
+        }
+
         $payment = $registration->latestPayment;
 
         if ($payment?->canBePaid()) {
@@ -125,9 +135,11 @@ class PaymentController extends Controller
     private function result(Registration $registration): RedirectResponse
     {
         if (! $registration->isComplete()) {
+            // Deliberately NOT back to the pay page: for a free booking that
+            // would create an infinite redirect loop.
             return redirect()
-                ->route('registration.pay', $registration->reference)
-                ->withErrors(['payment' => 'Payment is still being confirmed. Please try again in a moment.']);
+                ->route('home')
+                ->withErrors(['payment' => 'Your booking is still being confirmed. Please check back in a moment.']);
         }
 
         $first = $registration->tickets->first();

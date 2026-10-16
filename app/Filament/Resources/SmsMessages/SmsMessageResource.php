@@ -7,6 +7,7 @@ use App\Models\SmsMessage;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
@@ -89,6 +90,7 @@ class SmsMessageResource extends Resource
                     ->options([
                         'otp' => 'OTP',
                         'ticket_reference' => 'Ticket reference',
+                        'payment_link' => 'Payment link',
                     ])
                     ->multiple(),
 
@@ -108,12 +110,12 @@ class SmsMessageResource extends Resource
                     ->action(function (SmsMessage $record): void {
                         $result = app(\App\Services\SmsService::class)->resend($record);
 
-                        $this->notify(
-                            $result->status->isFailure() ? 'danger' : 'success',
-                            title: $result->status->isFailure()
+                        Notification::make()
+                            ->title($result->status->isFailure()
                                 ? 'Resend failed: '.$result->error_message
-                                : 'Message resent.',
-                        );
+                                : 'Message resent.')
+                            ->{$result->status->isFailure() ? 'danger' : 'success'}()
+                            ->send();
                     }),
             ])
             ->toolbarActions([
@@ -132,7 +134,7 @@ class SmsMessageResource extends Resource
                                 $count++;
                             }
 
-                            $this->notify('success', title: "Resent {$count} message(s).");
+                            Notification::make()->title("Resent {$count} message(s).")->success()->send();
                         })
                         ->deselectRecordsAfterCompletion(),
                 ]),
